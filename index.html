@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mapa sistémico organizacional</title>
+
+<!-- Cytoscape.js CDN -->
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+
+<style>
+  /* Layout base pantalla completa */
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Open Sans", sans-serif;
+    background-color: #f9fafb;
+    color: #111827;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #ffffffcc;
+    backdrop-filter: blur(6px);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .title-line {
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .subtitle-line {
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  /* leyenda rápida */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .box {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  /* Contenedor del grafo */
+  #cy {
+    flex: 1;
+    min-height: 0; /* importante para flexbox */
+  }
+
+  footer {
+    padding: 10px 16px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 11px;
+    color: #6b7280;
+    background: #fff;
+    line-height: 1.4;
+  }
+
+  .meta-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .metric-pill {
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    line-height: 1.4;
+  }
+
+  /* Tooltip flotante propio (simple) */
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #111827;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 6px 8px;
+    border-radius: 6px;
+    max-width: 220px;
+    box-shadow: 0 10px 20px rgb(0 0 0 / .3);
+    display: none;
+    z-index: 9999;
+  }
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="title-line">
+    <span id="mainTitle">Mapa sistémico</span>
+    <span class="metric-pill" id="langPill">es</span>
+  </div>
+  <div class="subtitle-line" id="subTitle">
+    Flujo de tensión humana → impacto operativo → costo oculto.
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="box" style="background:#dc2626;"></div>
+      <span>En crisis / In crisis</span>
+    </div>
+    <div class="legend-item">
+      <div class="box" style="background:#f97316;"></div>
+      <span>Desconectado / Disconnected</span>
+    </div>
+    <div class="legend-item">
+      <div class="box" style="background:#eab308;"></div>
+      <span>En transición / In transition</span>
+    </div>
+    <div class="legend-item">
+      <div class="box" style="background:#00A676;"></div>
+      <span>Regenerativa / Regenerative</span>
+    </div>
+    <div class="legend-item">
+      <div class="box" style="background:#6b7280; border-radius:50%;"></div>
+      <span>Tamaño = costo oculto</span>
+    </div>
+  </div>
+</header>
+
+<div id="cy"></div>
+
+<footer>
+  <div class="meta-line">
+    <div><strong id="mostCriticalAreaLabel">Área más tensa:</strong> <span id="mostCriticalAreaVal">--</span></div>
+    <div><strong>Total hidden cost:</strong> <span id="totalCostVal">$0 USD</span></div>
+  </div>
+  <div style="margin-top:4px;">
+    <span id="footNote">Cada flecha representa una relación causa→efecto dentro del sistema organizacional.</span>
+  </div>
+</footer>
+
+<div id="tooltip"></div>
+
+<script>
+/**
+ * UTILIDADES
+ */
+
+function moneyFmt(num, lang){
+  if (!num || isNaN(num)) return '$0';
+  const locale = lang === 'en' ? 'en-US' : 'es-MX';
+  return '$' + Math.round(num).toLocaleString(locale) + ' USD';
+}
+
+// igual que en Velo
+function nivelConexionTexto(score, lang){
+  if (score <= 2.0) return lang === 'en' ? 'In crisis' : 'En crisis';
+  if (score <= 3.0) return lang === 'en' ? 'Disconnected' : 'Desconectado';
+  if (score <= 4.0) return lang === 'en' ? 'In transition' : 'En transición';
+  return lang === 'en' ? 'Regenerative' : 'Regenerativa';
+}
+
+// color según urgencia
+function colorFromScore(score){
+  if (score <= 2.0) return '#dc2626'; // rojo
+  if (score <= 3.0) return '#f97316'; // naranja
+  if (score <= 4.0) return '#eab308'; // amarillo
+  return '#00A676';                   // verde regenerativa
+}
+
+// tamaño nodo según costo (min 40 max 120 px diámetro aprox)
+function sizeFromCost(cost){
+  const base = Number(cost) || 0;
+  const min = 40;
+  const max = 120;
+  // normalización muy simple
+  // si cost = 0 => min
+  // si cost >= 40000 => max
+  const ratio = Math.min(base / 40000, 1);
+  return min + ratio * (max - min);
+}
+
+// genera el subtítulo dinámico según idioma
+function buildSubTitle(lang){
+  return (lang === 'en')
+    ? 'Human tension → operational friction → hidden financial cost.'
+    : 'Tensión humana → fricción operativa → costo oculto financiero.';
+}
+
+// tooltip contenido
+function buildTooltipHTML(nodeData, lang){
+  const lines = [];
+  lines.push('<strong>' + nodeData.label + '</strong>');
+  lines.push((lang==='en'?'Score: ':'Puntaje: ') + nodeData.score.toFixed(1) + '/5');
+  lines.push((lang==='en'?'State: ':'Estado: ') + nivelConexionTexto(nodeData.score, lang));
+  if (nodeData.cost != null){
+    lines.push((lang==='en'?'Hidden cost: ':'Costo oculto: ') + moneyFmt(nodeData.cost, lang));
+  }
+  if (nodeData.estado){
+    // redundante con nivelConexionTexto, pero si tú mandas "estado" en el payload, lo mostramos
+    lines.push(nodeData.estado);
+  }
+  return lines.join('<br/>');
+}
+
+
+/**
+ * GRAFO: instancia Cytoscape
+ */
+let cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: [],
+  style: [
+    // nodos
+    {
+      selector: 'node',
+      style: {
+        'background-color': '#6b7280',
+        'label': 'data(labelShort)',
+        'color': '#111827',
+        'font-size': '10px',
+        'font-weight': '600',
+        'text-wrap': 'wrap',
+        'text-max-width': '80px',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'border-width': 2,
+        'border-color': '#1f2937',
+        'width': 'data(size)',
+        'height': 'data(size)',
+        'overlay-opacity': 0
+      }
+    },
+    // aristas
+    {
+      selector: 'edge',
+      style: {
+        'width': 2,
+        'line-color': '#6b7280',
+        'target-arrow-color': '#6b7280',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'font-size': '9px',
+        'color': '#374151',
+        'label': 'data(tipo)',
+        'text-background-opacity': 1,
+        'text-background-color': '#ffffffcc',
+        'text-background-padding': 2,
+        'text-rotation': 'autorotate'
+      }
+    }
+  ],
+  layout: { name: 'cose', animate: false }
+});
+
+
+/**
+ * TOOLTIP manual
+ */
+const tooltip = document.getElementById('tooltip');
+
+function showTooltip(html, x, y){
+  tooltip.innerHTML = html;
+  tooltip.style.left = x + 12 + 'px';
+  tooltip.style.top  = y + 12 + 'px';
+  tooltip.style.display = 'block';
+}
+function hideTooltip(){
+  tooltip.style.display = 'none';
+}
+
+cy.on('mouseover', 'node', (evt) => {
+  const node = evt.target;
+  const data = node.data();
+  showTooltip(buildTooltipHTML(data, data.lang), evt.renderedPosition.x, evt.renderedPosition.y);
+});
+cy.on('mouseout', 'node', hideTooltip);
+
+
+/**
+ * FUNCIÓN PRINCIPAL:
+ * recibe payload del postMessage de Wix
+ * payload esperado:
+ * {
+ *   type: 'sistema',
+ *   lang: 'es' | 'en',
+ *   nodes: [
+ *     { id, label, score, cost, estado? }
+ *   ],
+ *   links: [
+ *     { from, to, tipo }
+ *   ]
+ * }
+ */
+function renderSystemMap(payload){
+  const { lang, nodes, links } = payload;
+
+  // 1. construir elementos para cytoscape
+  const elements = [];
+
+  nodes.forEach(n => {
+    const labelShort = `${n.label}\n${n.score?.toFixed(1) || '-'} /5\n${moneyFmt(n.cost, lang)}`;
+    elements.push({
+      data: {
+        id: n.id,
+        label: n.label,
+        labelShort,
+        score: Number(n.score) || 0,
+        cost: Number(n.cost) || 0,
+        size: sizeFromCost(n.cost),
+        color: colorFromScore(n.score),
+        estado: n.estado,
+        lang
+      }
+    });
+  });
+
+  links.forEach(l => {
+    // si el link apunta a "costos" y ese nodo no existe, lo creamos gris
+    if (l.to === 'costos' && !elements.find(e => e.data.id === 'costos')) {
+      const totalCost = nodes.reduce((acc,n) => acc + (Number(n.cost)||0), 0);
+      elements.push({
+        data: {
+          id: 'costos',
+          label: (lang==='en'?'Hidden cost total':'Costo oculto total'),
+          labelShort: (lang==='en'
+            ? `Hidden cost total\n${moneyFmt(totalCost, lang)}`
+            : `Costo oculto total\n${moneyFmt(totalCost, lang)}`),
+          score: 0,
+          cost: totalCost,
+          size: sizeFromCost(totalCost),
+          color: '#6b7280',
+          estado: '',
+          lang
+        }
+      });
+    }
+
+    elements.push({
+      data: {
+        id: l.from + '->' + l.to,
+        source: l.from,
+        target: l.to,
+        tipo: l.tipo || ''
+      }
+    });
+  });
+
+  // 2. setear data en cytoscape
+  cy.elements().remove();
+  cy.add(elements);
+
+  // 3. aplicar colores finales
+  cy.nodes().forEach(n => {
+    const c = n.data('color');
+    n.style('background-color', c);
+    n.style('border-color', c);
+  });
+
+  // 4. recalcular layout (cose = force-directed / orgánica)
+  cy.layout({ name: 'cose', animate: false }).run();
+
+  // 5. actualizar header/footer
+  document.getElementById('langPill').textContent = lang;
+
+  // área más tensa (score más bajo)
+  let critical = nodes[0];
+  nodes.forEach(nd => {
+    if ((nd.score ?? 999) < (critical.score ?? 999)) {
+      critical = nd;
+    }
+  });
+
+  const criticalTxt = critical
+    ? `${critical.label} (${critical.score?.toFixed(1) || '-'} /5)`
+    : '--';
+
+  document.getElementById('mostCriticalAreaVal').textContent = criticalTxt;
+
+  // costo total
+  const totalCost = nodes.reduce((acc,n) => acc + (Number(n.cost)||0), 0);
+  document.getElementById('totalCostVal').textContent = moneyFmt(totalCost, lang);
+
+  // subtítulo dinámico
+  document.getElementById('subTitle').textContent = buildSubTitle(lang);
+
+  // nota pie (puedes personalizar a ESG / reputación)
+  document.getElementById('footNote').textContent =
+    (lang === 'en')
+    ? 'Each arrow shows how misalignment spreads into culture, slows execution, and becomes financial drag.'
+    : 'Cada flecha muestra cómo la desalineación se filtra a la cultura, frena la ejecución y se convierte en costo financiero.';
+}
+
+
+/**
+ * MENSAJERÍA CON WIX
+ * - Avisar que estamos listos
+ * - Escuchar data entrante
+ */
+function sendReady(){
+  // Anunciamos a Wix que este iframe está listo para recibir datos
+  window.parent.postMessage({ type: 'ready' }, '*');
+}
+
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
+  if (data.type === 'sistema') {
+    renderSystemMap(data);
+  }
+});
+
+// handshake inicial
+sendReady();
+</script>
+
+</body>
+</html>
