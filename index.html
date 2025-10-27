@@ -236,20 +236,31 @@ let cy = cytoscape({
     {
       selector: 'node',
       style: {
-        'background-color': '#6b7280',
-        'label': 'data(labelShort)',
-        'color': '#111827',
-        'font-size': '10px',
-        'font-weight': '600',
-        'text-wrap': 'wrap',
-        'text-max-width': '80px',
-        'text-valign': 'center',
-        'text-halign': 'center',
-        'border-width': 2,
-        'border-color': '#1f2937',
-        'width': 'data(size)',
-        'height': 'data(size)',
-        'overlay-opacity': 0
+         // línea / flecha
+            'width': 6,                             // antes 2 -> más gruesa = más presencia visual
+            'line-color': '#000000',                // negro sólido para contraste
+            'target-arrow-color': '#000000',
+            'target-arrow-shape': 'triangle',
+            'arrow-scale': 1.2,                     // flecha un poquito más grande
+            'curve-style': 'bezier',
+
+            // etiqueta
+            'label': 'data(tipo)',
+            'font-size': '14px',                    // antes 9px -> mucho más legible
+            'font-weight': '600',                   // semibold
+            'color': '#111827',                     // texto gris muy oscuro sobre fondo claro
+
+            // fondo del texto
+            'text-background-opacity': 1,           // fondo sólido
+            'text-background-color': '#ffffff',     // blanco puro
+            'text-background-padding': 6,           // más padding = cajita tipo chip
+            'text-border-color': '#000000',         // borde negro alrededor de la etiqueta
+            'text-border-width': 1,
+            'text-border-opacity': 1,
+            'text-background-shape': 'round-rectangle', // pill redondeado
+
+            // orientación del texto
+            'text-rotation': 'autorotate',
       }
     },
     // aristas
