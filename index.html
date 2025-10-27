@@ -192,8 +192,8 @@ function colorFromScore(score){
 // tamaño nodo según costo (min 40 max 120 px diámetro aprox)
 function sizeFromCost(cost){
   const base = Number(cost) || 0;
-  const min = 40;
-  const max = 120;
+  const min = 36;
+  const max = 90;
   // normalización muy simple
   // si cost = 0 => min
   // si cost >= 40000 => max
@@ -232,54 +232,65 @@ let cy = cytoscape({
   container: document.getElementById('cy'),
   elements: [],
   style: [
-    // nodos
+    // ====== NODOS ======
     {
-      selector: 'node',
-      style: {
-         // línea / flecha
-            'width': 6,                             // antes 2 -> más gruesa = más presencia visual
-            'line-color': '#000000',                // negro sólido para contraste
-            'target-arrow-color': '#000000',
-            'target-arrow-shape': 'triangle',
-            'arrow-scale': 1.2,                     // flecha un poquito más grande
-            'curve-style': 'bezier',
+    selector: 'node',
+    style: {
+      'background-color': '#6b7280',
+      'label': 'data(labelShort)',   // seguimos mostrando score y $ dentro del nodo
+      'color': '#111827',
+      'font-size': '10px',
+      'font-weight': '600',
+      'text-wrap': 'wrap',
+      'text-max-width': '80px',
+      'text-valign': 'center',
+      'text-halign': 'center',
 
-            // etiqueta
-            'label': 'data(tipo)',
-            'font-size': '14px',                    // antes 9px -> mucho más legible
-            'font-weight': '600',                   // semibold
-            'color': '#111827',                     // texto gris muy oscuro sobre fondo claro
+      'border-width': 2,
+      'border-color': '#1f2937',
 
-            // fondo del texto
-            'text-background-opacity': 1,           // fondo sólido
-            'text-background-color': '#ffffff',     // blanco puro
-            'text-background-padding': 6,           // más padding = cajita tipo chip
-            'text-border-color': '#000000',         // borde negro alrededor de la etiqueta
-            'text-border-width': 1,
-            'text-border-opacity': 1,
-            'text-background-shape': 'round-rectangle', // pill redondeado
+      'width': 'data(size)',
+      'height': 'data(size)',
 
-            // orientación del texto
-            'text-rotation': 'autorotate',
-      }
+      // sin overlay oscuro al hover
+      'overlay-opacity': 0,
+
+      // IMPORTANTÍSIMO: NO fondo blanco en el texto del nodo
+      'text-background-opacity': 0,
+      'text-border-width': 0
+     }
     },
     // aristas
     {
       selector: 'edge',
       style: {
-        'width': 6,
+        // línea / flecha
+        'width': 3,
         'line-color': '#000000',
         'target-arrow-color': '#000000',
         'target-arrow-shape': 'triangle',
-        'arrow-scale': 1.2, 
+        'arrow-scale': 1.0, 
         'curve-style': 'bezier',
-        'font-size': '9px',
-        'color': '#111827',
+
+        // etiqueta encima de la flecha
         'label': 'data(tipo)',
-        'text-background-opacity': 1,
-        'text-background-color': '#ffffff',
-        'text-background-padding': 2,
-        'text-rotation': 'autorotate'
+        'font-size': '9px',               // antes 14px gigante, ahora tamaño UI normal
+        'font-weight': '600',
+        'color': '#111827',                // texto gris muy oscuro
+
+       // cajita blanca atrás del texto
+      'text-background-opacity': 1,
+      'text-background-color': '#ffffff',
+      'text-background-padding': 3,      // antes 6 → más compacta
+      'text-background-shape': 'round-rectangle',
+
+      // borde gris clarito (no negro grueso)
+      'text-border-color': '#9ca3af',    // gris claro tailwind-ish
+      'text-border-width': 1,
+      'text-border-opacity': 1,
+
+      // que siga la orientación de la flecha
+      'text-rotation': 'autorotate'
       }
     }
   ],
